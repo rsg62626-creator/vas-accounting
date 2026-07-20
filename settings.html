@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <title>VAS - システム設定</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="./index.html"><i class="fa-solid fa-arrow-left"></i> 戻る</a>
+        <span>システム設定</span>
+        <div></div>
+    </nav>
+
+    <div class="container-sm">
+
+        <!-- カテゴリ管理 -->
+        <div class="settings-card">
+            <h2><i class="fa-solid fa-tags"></i> カテゴリ管理</h2>
+            <p style="margin-bottom:10px;">勘定科目（カテゴリ）の追加・削除を行います。</p>
+            <a href="./categories.html" class="btn-submit" style="display:flex; text-decoration:none;">
+                <i class="fa-solid fa-list"></i> カテゴリ管理を開く
+            </a>
+        </div>
+
+        <!-- 月締め処理 -->
+        <div class="settings-card">
+            <h2><i class="fa-solid fa-calendar-check"></i> 月締め処理</h2>
+
+            <p style="margin-bottom:10px;">
+                月締めを実行すると、<br>
+                ・前月の収支集計<br>
+                ・年間現金出納簿の更新<br>
+                ・翌月繰越の更新<br>
+                が自動で行われます。
+            </p>
+
+            <button onclick="runMonthClose()">前月を月締めする</button>
+        </div>
+
+        <!-- 業務管理 -->
+        <div class="settings-card">
+            <h2><i class="fa-solid fa-shield-halved"></i> 業務管理</h2>
+
+            <button class="btn-action" onclick="runIntegrityCheck()" style="margin-top:0;">
+                <i class="fa-solid fa-shield-halved"></i> データ整合性チェック
+            </button>
+        </div>
+
+        <!-- パスワード変更 -->
+        <div class="settings-card">
+            <h2><i class="fa-solid fa-key"></i> パスワード変更</h2>
+
+            <label>現在のパスワード</label>
+            <input type="password" id="old-pass" placeholder="現在のパスワード">
+
+            <label>新しいパスワード</label>
+            <input type="password" id="new-pass" placeholder="新しいパスワード">
+
+            <label>新しいパスワード（確認）</label>
+            <input type="password" id="new-pass2" placeholder="もう一度入力">
+
+            <button onclick="changePassword()">変更する</button>
+        </div>
+
+    </div>
+
+    <script src="./js/app.js"></script>
+    <script src="./js/api.js"></script>
+
+    <script>
+        async function runMonthClose() {
+            toggleLoading(true);
+            const result = await callGasAPI("runMonthClose", {});
+            toggleLoading(false);
+
+            if (!result.success) {
+                showMessage(result.message, true);
+                return;
+            }
+
+            showMessage(result.message);
+        }
+
+        async function runIntegrityCheck() {
+            toggleLoading(true);
+            const result = await callGasAPI("checkDataIntegrity", {});
+            toggleLoading(false);
+
+            if (result.success) {
+                showMessage(result.message || "問題は見つかりませんでした");
+            } else {
+                showMessage(result.message, true);
+            }
+        }
+
+        async function changePassword() {
+            const oldPass = document.getElementById("old-pass").value;
+            const newPass = document.getElementById("new-pass").value;
+            const newPass2 = document.getElementById("new-pass2").value;
+
+            if (!oldPass || !newPass || !newPass2) {
+                showMessage("すべて入力してください", true);
+                return;
+            }
+
+            if (newPass !== newPass2) {
+                showMessage("新しいパスワードが一致しません", true);
+                return;
+            }
+
+            toggleLoading(true);
+
+            const result = await callGasAPI("changePassword", {
+                oldPassword: oldPass,
+                newPassword: newPass
+            });
+
+            toggleLoading(false);
+
+            if (!result.success) {
+                showMessage(result.message, true);
+                return;
+            }
+
+            showMessage("パスワードを変更しました");
+            document.getElementById("old-pass").value = "";
+            document.getElementById("new-pass").value = "";
+            document.getElementById("new-pass2").value = "";
+        }
+    </script>
+
+</body>
+</html>

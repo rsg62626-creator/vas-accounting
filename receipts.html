@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <title>VAS - レシート管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="./index.html"><i class="fa-solid fa-arrow-left"></i> 戻る</a>
+        <span>レシート管理</span>
+        <div></div>
+    </nav>
+
+    <div class="container">
+        <h2><i class="fa-solid fa-clock"></i> レシート未登録一覧 (あとで登録)</h2>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>レシート番号</th>
+                        <th>日付</th>
+                        <th>金額</th>
+                        <th>画像アップロード</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="pending-tbody">
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:#888;">読み込み中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="./js/app.js"></script>
+    <script src="./js/api.js"></script>
+
+    <script>
+        const pendingTbody = document.getElementById('pending-tbody');
+
+        const fileToBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+
+        async function loadPendingReceipts() {
+            toggleLoading(true);
+
+            const pendingResult = await callGasAPI("getPendingReceipts", {});
+
+            toggleLoading(false);
+
+            if (!pendingResult || !pendingResult.success) {
+                pendingTbody.innerHTML =
+                    `<tr><td colspan="5" style="text-align:center; color:red;">
+                        データ取得に失敗しました: ${(pendingResult && pendingResult.message) || ''}
+                    </td></tr>`;
+                return;
+            }
+
+            const list = pendingResult.data;
+
+            if (!list || list.length === 0) {
+                pendingTbody.innerHTML =
+                    `<tr><td colspan="5" style="text-align:center; color:#888;">
+                        レシート登録待ちはありません。
+                    </td></tr>`;
+                return;
+            }
+
+            pendingTbody.innerHTML = "";
+
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.receiptNo}</td>
+                    <td>${item.date}</td>
+                    <td><strong>¥${Number(item.amount).toLocaleString()}</strong></td>
+                    <td><input type="file" id="file-${item.receiptNo}" accept="image/*"></td>
+                    <td>
+                        <button class="btn-submit" style="padding:8px 12px;"
+                            onclick="uploadImage('${item.receiptNo}')">
+                            <i class="fa-solid fa-upload"></i> アップロード
+                        </button>
+                    </td>
+                `;
+                pendingTbody.appendChild(tr);
+            });
+        }
+
+        async function uploadImage(receiptNo) {
+          const fileInput = document.getElementById(`file-${receiptNo}`);
+
+          if (!fileInput || fileInput.files.length === 0) {
+              showMessage("画像ファイルを選択してください", true);
+              return;
+          }
+
+          try {
+              const file = fileInput.files[0];
+              const base64Data = await fileToBase64(file);
+
+              toggleLoading(true);
+
+              const result = await callGasAPI("uploadReceiptImage", {
+                  receiptNo,
+                  imageData: base64Data,
+                  imageName: file.name
+              });
+
+              if (result && result.success) {
+
+                  showMessage("アップロード成功！");
+
+                  // ★★★ アップロードした行を即座に削除する ★★★
+                  const row = fileInput.closest("tr");
+                  if (row) row.remove();
+
+                  // ★★★ ローディングを止める（再描画前に止める） ★★★
+                  toggleLoading(false);
+
+                  // ★★★ 最新の一覧を再取得する（行が消えた後に実行） ★★★
+                  loadPendingReceipts();
+
+              } else {
+                  showMessage("エラー: " + (result.message || "書き込み失敗"), true);
+                  toggleLoading(false);
+              }
+
+          } catch (err) {
+              showMessage("通信エラーが発生しました", true);
+              toggleLoading(false);
+          }
+        }
+
+
+
+        window.addEventListener('load', loadPendingReceipts);
+    </script>
+
+</body>
+</html>

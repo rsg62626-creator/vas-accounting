@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <title>VAS - CSVエクスポート</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="./index.html"><i class="fa-solid fa-arrow-left"></i> 戻る</a>
+        <span>CSVエクスポート</span>
+        <div></div>
+    </nav>
+
+    <div class="container-sm">
+
+        <h2><i class="fa-solid fa-file-export"></i> CSV出力</h2>
+
+        <div class="form-group">
+            <label>対象</label>
+            <div class="radio-group">
+                <label><input type="radio" name="scope" value="month" checked onchange="toggleScope()"> 指定の月のみ</label>
+                <label><input type="radio" name="scope" value="all" onchange="toggleScope()"> 全期間</label>
+            </div>
+        </div>
+
+        <div class="form-group" id="month-select-group">
+            <label>対象年月</label>
+            <input type="month" id="target-month">
+        </div>
+
+        <button class="btn-submit" onclick="doExport()">
+            <i class="fa-solid fa-download"></i> CSVを生成する
+        </button>
+
+        <div id="download-area" style="margin-top:20px; display:none;">
+            <button id="download-btn" class="btn-submit" style="background: var(--primary);">
+                <i class="fa-solid fa-file-arrow-down"></i> CSVをダウンロード
+            </button>
+        </div>
+
+    </div>
+
+    <script src="./js/app.js"></script>
+    <script src="./js/api.js"></script>
+
+    <script>
+        function toggleScope() {
+            const scope = document.querySelector('input[name="scope"]:checked').value;
+            document.getElementById('month-select-group').style.display =
+                (scope === 'month') ? 'block' : 'none';
+        }
+
+        function initMonth() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            document.getElementById('target-month').value = `${yyyy}-${mm}`;
+        }
+
+        async function doExport() {
+            const scope = document.querySelector('input[name="scope"]:checked').value;
+            let data = {};
+
+            if (scope === 'month') {
+                const val = document.getElementById('target-month').value;
+                if (!val) {
+                    showMessage("対象年月を選択してください", true);
+                    return;
+                }
+                const [y, m] = val.split('-');
+                data = { year: Number(y), month: Number(m) };
+            }
+
+            toggleLoading(true);
+            const result = await callGasAPI("exportCSV", data);
+            toggleLoading(false);
+
+            if (!result.success) {
+                showMessage("CSV出力に失敗しました: " + (result.message || ""), true);
+                return;
+            }
+
+            const area = document.getElementById('download-area');
+            const btn = document.getElementById('download-btn');
+            area.style.display = 'block';
+            btn.onclick = () => window.open(result.url, '_blank');
+
+            showMessage("CSVファイルを生成しました！");
+        }
+
+        window.addEventListener('load', () => {
+            initMonth();
+            toggleScope();
+        });
+    </script>
+
+</body>
+</html>

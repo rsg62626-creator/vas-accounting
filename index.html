@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <title>末吉中 会計 - ダッシュボード</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <nav class="navbar">
+        <span class="brand"><i class="fa-solid fa-chart-line"></i> 末吉中 会計 - ダッシュボード</span>
+        <i id="carryover-icon" class="fa-solid fa-wallet" onclick="toggleCarryoverPanel()"></i>
+    </nav>
+
+    <div id="carryover-panel">
+        <h3><i class="fa-solid fa-wallet"></i> 繰越金設定</h3>
+        <div id="carryover-display" class="amount" style="margin-bottom:10px;">¥0</div>
+        <input type="password" id="carryover-pass" placeholder="パスワード">
+        <input type="text" id="carryover-input" placeholder="金額" oninput="onlyNumber(this)">
+        <button onclick="saveCarryover()">保存</button>
+    </div>
+
+    <div class="container">
+
+        <div class="summary-grid">
+            <div class="summary-card summary-budget">
+                <h3><i class="fa-solid fa-wallet"></i> 予算残高</h3>
+                <div id="budget-amount" class="amount">¥0</div>
+            </div>
+            <div class="summary-card summary-income">
+                <h3><i class="fa-solid fa-circle-arrow-up"></i> 今月の収入</h3>
+                <div id="income-amount" class="amount">¥0</div>
+            </div>
+            <div class="summary-card summary-expense">
+                <h3><i class="fa-solid fa-circle-arrow-down"></i> 今月の支出</h3>
+                <div id="expense-amount" class="amount">¥0</div>
+            </div>
+            <div class="summary-card summary-balance">
+                <h3><i class="fa-solid fa-scale-balanced"></i> 今月の収支</h3>
+                <div id="balance-amount" class="amount">¥0</div>
+            </div>
+        </div>
+
+        <div class="graph-row">
+            <div class="graph-card">
+                <h3><i class="fa-solid fa-chart-bar"></i> 収入と支出の比較</h3>
+                <canvas id="pieChart"></canvas>
+            </div>
+            <div class="graph-card">
+                <h3><i class="fa-solid fa-chart-column"></i> 月別予算残高</h3>
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+
+        <h2><i class="fa-solid fa-list"></i> メニュー</h2>
+        <div class="menu-grid">
+            <a href="./entry.html" class="btn-menu">
+                <i class="fa-solid fa-pen-to-square"></i>
+                <span>会計入力</span>
+            </a>
+            <a href="./ledger.html" class="btn-menu">
+                <i class="fa-solid fa-table"></i>
+                <span>一覧・台帳</span>
+            </a>
+            <a href="./receipts.html" class="btn-menu">
+                <i class="fa-solid fa-receipt"></i>
+                <span>レシート管理</span>
+            </a>
+            <a href="./reports.html" class="btn-menu">
+                <i class="fa-solid fa-file-export"></i>
+                <span>CSVエクスポート</span>
+            </a>
+            <a href="./settings.html" class="btn-menu">
+                <i class="fa-solid fa-gear"></i>
+                <span>システム設定</span>
+            </a>
+        </div>
+
+    </div>
+
+    <script src="./js/app.js"></script>
+    <script src="./js/api.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+              .then(reg => console.log('Service worker registered.', reg))
+              .catch(err => console.log('Service worker registration failed:', err));
+          });
+        }
+    </script>
+
+    <script>
+        let pieChart, barChart;
+
+        function toggleCarryoverPanel() {
+            document.getElementById('carryover-panel').classList.toggle('open');
+        }
+
+        async function saveCarryover() {
+            const pass = document.getElementById('carryover-pass').value;
+            const amount = Number(document.getElementById('carryover-input').value);
+
+            if (!pass || !amount) {
+                showMessage("パスワードと金額を入力してください", true);
+                return;
+            }
+
+            toggleLoading(true);
+            const result = await callGasAPI("saveSettings", {
+                password: pass,
+                carryover: amount
+            });
+            toggleLoading(false);
+
+            if (result.success) {
+                showMessage("繰越金を保存しました");
+                loadDashboard();
+            } else {
+                showMessage(result.message, true);
+            }
+        }
+
+        function updateSummary(income, expense, balance, budgetRemain) {
+            document.getElementById('budget-amount').textContent = formatCurrency(budgetRemain);
+            document.getElementById('income-amount').textContent = formatCurrency(income);
+            document.getElementById('expense-amount').textContent = formatCurrency(expense);
+
+            const balanceEl = document.getElementById('balance-amount');
+            balanceEl.textContent = formatCurrency(balance);
+
+            if (income > expense) {
+                balanceEl.style.color = "#3498db";
+            } else if (expense > income) {
+                balanceEl.style.color = "#e74c3c";
+            } else {
+                balanceEl.style.color = "var(--dark)";
+            }
+        }
+
+        function renderIncomeExpenseBar(income, expense) {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            if (pieChart) pieChart.destroy();
+
+            pieChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['収入', '支出'],
+                    datasets: [{
+                        label: '金額',
+                        data: [income, expense],
+                        backgroundColor: ['#3498db', '#e74c3c']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function renderBarChart(months, remains) {
+            const ctx = document.getElementById('barChart').getContext('2d');
+            if (barChart) barChart.destroy();
+
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: '予算残高',
+                        data: remains,
+                        backgroundColor: '#3498db'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        async function loadDashboard() {
+            toggleLoading(true);
+
+            const settings = await callGasAPI("getSettings", {});
+            const carryover = settings.carryover || 0;
+            document.getElementById('carryover-display').textContent = formatCurrency(carryover);
+
+            const summary = await callGasAPI("getDashboard", {});
+            const budgetRemain = carryover + summary.income - summary.expense;
+
+            updateSummary(summary.income, summary.expense, summary.balance, budgetRemain);
+            renderIncomeExpenseBar(summary.income, summary.expense);
+
+            const monthly = await callGasAPI("getMonthlyRemain", {});
+            if (monthly.success) {
+                renderBarChart(monthly.months, monthly.remains);
+            }
+
+            toggleLoading(false);
+        }
+
+        window.addEventListener('load', loadDashboard);
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <title>VAS - カテゴリ管理</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="./settings.html"><i class="fa-solid fa-arrow-left"></i> 戻る</a>
+        <span>カテゴリ管理</span>
+        <div></div>
+    </nav>
+
+    <div class="container-sm">
+
+        <h2><i class="fa-solid fa-list"></i> カテゴリ一覧</h2>
+
+        <div class="category-list" id="category-list">
+            <div class="category-item">読み込み中...</div>
+        </div>
+
+        <h2><i class="fa-solid fa-plus"></i> カテゴリを追加</h2>
+        <div class="add-form">
+            <input type="text" id="new-category" placeholder="例：交通費">
+            <button onclick="addCategory()">追加</button>
+        </div>
+
+    </div>
+
+    <script src="./js/app.js"></script>
+    <script src="./js/api.js"></script>
+
+    <script>
+        async function loadCategories() {
+            toggleLoading(true);
+            const result = await callGasAPI("getCategories", {});
+            toggleLoading(false);
+
+            const list = document.getElementById('category-list');
+
+            if (!result.success) {
+                list.innerHTML = `<div class="category-item">取得に失敗しました</div>`;
+                return;
+            }
+
+            const categories = result.data || [];
+
+            if (categories.length === 0) {
+                list.innerHTML = `<div class="category-item">カテゴリがありません</div>`;
+                return;
+            }
+
+            list.innerHTML = "";
+            categories.forEach(cat => {
+                const div = document.createElement('div');
+                div.className = 'category-item';
+                div.innerHTML = `
+                    <span>${cat}</span>
+                    <button onclick="deleteCategory('${cat}')"><i class="fa-solid fa-trash"></i> 削除</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function addCategory() {
+            const input = document.getElementById('new-category');
+            const name = input.value.trim();
+
+            if (!name) {
+                showMessage("カテゴリ名を入力してください", true);
+                return;
+            }
+
+            toggleLoading(true);
+            const result = await callGasAPI("addCategory", { name });
+            toggleLoading(false);
+
+            if (result.success) {
+                showMessage("カテゴリを追加しました");
+                input.value = "";
+                loadCategories();
+            } else {
+                showMessage(result.message, true);
+            }
+        }
+
+        async function deleteCategory(name) {
+            if (!confirm(`「${name}」を削除しますか？`)) return;
+
+            toggleLoading(true);
+            const result = await callGasAPI("deleteCategory", { name });
+            toggleLoading(false);
+
+            if (result.success) {
+                showMessage("カテゴリを削除しました");
+                loadCategories();
+            } else {
+                showMessage(result.message, true);
+            }
+        }
+
+        window.addEventListener('load', loadCategories);
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <link rel="manifest" href="./manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4a90e2">
+    <link rel="icon" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <title>VAS - 会計台帳</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="./index.html"><i class="fa-solid fa-arrow-left"></i> 戻る</a>
+        <span>会計台帳</span>
+        <div></div>
+    </nav>
+
+    <div class="container-sm">
+
+        <div class="month-header">
+            <button onclick="changeMonth(-1)">◀ 前月</button>
+            <span id="current-month-label"></span>
+            <button onclick="changeMonth(1)">次月 ▶</button>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="search" placeholder="検索（科目・摘要・内訳・金額・区分・日付）" oninput="applySearch()">
+        </div>
+
+        <table id="ledger-table">
+            <thead>
+                <tr>
+                    <th>日付</th>
+                    <th>区分</th>
+                    <th>科目</th>
+                    <th>摘要</th>
+                    <th>内訳</th>
+                    <th>金額</th>
+                    <th>領収</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div style="display:flex; gap:20px; align-items:flex-start; margin-top:20px; flex-wrap:wrap;">
+
+            <div class="summary-box">
+                <h3>合計</h3>
+                <p id="income-total">収入合計: 0</p>
+                <p id="expense-total">支出合計: 0</p>
+                <p id="balance-total">収支: 0</p>
+
+                <div class="summary-section">
+                    <h4>【収入の科目別合計】</h4>
+                    <div id="income-category-summary"></div>
+                </div>
+
+                <div class="summary-section">
+                    <h4>【支出の科目別合計】</h4>
+                    <div id="expense-category-summary"></div>
+                </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <button onclick="exportExcel()"
+                        style="padding:12px 20px; background:#c7d6eb; border:none; border-radius:6px; font-size:1rem;">
+                    <i class="fa-solid fa-file-excel"></i> 月次現金出納簿をExcel出力
+                </button>
+
+                <button id="excel-download-btn"
+                        style="display:none; padding:12px 20px; background:#b7e3b1; border:none; border-radius:6px; font-size:1rem;">
+                    <i class="fa-solid fa-download"></i> ダウンロード
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="./js/app.js"></script>
+    <script src="./js/api.js"></script>
+
+    <script>
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth() + 1;
+        let currentData = [];
+
+        // ★ シートの日付文字列をタイムゾーンずれなく安全にDate化する共通関数
+        function parseSheetDate(raw) {
+            if (raw instanceof Date) return raw;
+            return new Date(String(raw).replace(/-/g, "/"));
+        }
+
+        function formatDate(dateStr) {
+            const d = parseSheetDate(dateStr);
+            if (isNaN(d)) return dateStr;
+            return `${d.getMonth() + 1}/${("0" + d.getDate()).slice(-2)}`;
+        }
+
+        function formatAmount(num) {
+            return Number(num).toLocaleString("ja-JP");
+        }
+
+        function updateMonthLabel() {
+            document.getElementById("current-month-label").textContent =
+                `${currentYear}年${currentMonth}月`;
+        }
+
+        function changeMonth(diff) {
+            currentMonth += diff;
+            if (currentMonth === 0) { currentMonth = 12; currentYear--; }
+            if (currentMonth === 13) { currentMonth = 1; currentYear++; }
+            updateMonthLabel();
+            loadLedger();
+        }
+
+        async function loadLedger() {
+            toggleLoading(true);
+
+            const entriesResult = await callGasAPI("getEntries", {});
+
+            toggleLoading(false);
+
+            if (!entriesResult.success) {
+                showMessage("データ取得に失敗しました", true);
+                return;
+            }
+
+            const allData = entriesResult.data;
+
+            currentData = allData.filter(item => {
+                const d = parseSheetDate(item[2]);
+                return d.getFullYear() === currentYear && (d.getMonth() + 1) === currentMonth;
+            });
+
+            document.getElementById("search").value = "";
+            renderTable(currentData);
+        }
+
+        function applySearch() {
+            const keyword = document.getElementById("search").value.toLowerCase();
+
+            const filtered = currentData.filter(item => {
+                const description = String(item[5] || "").toLowerCase();
+                const detail = extractDetail(description).toLowerCase();
+                const descriptionMain = description.replace(/（.+?）/, "");
+
+                return (
+                    String(item[3]).toLowerCase().includes(keyword) ||
+                    String(item[4]).toLowerCase().includes(keyword) ||
+                    descriptionMain.includes(keyword) ||
+                    detail.includes(keyword) ||
+                    String(item[6]).includes(keyword) ||
+                    formatDate(item[2]).includes(keyword)
+                );
+            });
+
+            renderTable(filtered);
+        }
+
+        function extractDetail(description) {
+            const match = description.match(/（(.+?)）/);
+            return match ? match[1] : "";
+        }
+
+        function extractMain(description) {
+            return String(description || "").replace(/（.+?）/, "");
+        }
+
+        function renderTable(data) {
+            const tbody = document.querySelector("#ledger-table tbody");
+            tbody.innerHTML = "";
+
+            let incomeTotal = 0;
+            let expenseTotal = 0;
+
+            const incomeCategory = {};
+            const expenseCategory = {};
+
+            data.forEach(item => {
+                const row = document.createElement("tr");
+
+                const date = formatDate(item[2]);
+                const type = item[3];
+                const category = item[4];
+                const description = item[5];
+
+                const descriptionMain = extractMain(description);
+                const detail = extractDetail(String(description || ""));
+
+                const amount = Number(item[6]);
+                const receipt = item[7];
+
+                if (type === "収入") {
+                    row.classList.add("income-row");
+                    incomeTotal += amount;
+                    incomeCategory[category] = (incomeCategory[category] || 0) + amount;
+                }
+
+                if (type === "支出") {
+                    row.classList.add("expense-row");
+                    expenseTotal += amount;
+                    expenseCategory[category] = (expenseCategory[category] || 0) + amount;
+                }
+
+                row.innerHTML = `
+                    <td>${date}</td>
+                    <td>${type}</td>
+                    <td>${category}</td>
+                    <td>${descriptionMain}</td>
+                    <td class="detail">${detail}</td>
+                    <td class="amount">${formatAmount(amount)}</td>
+                    <td>${receipt}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            document.getElementById("income-total").textContent =
+                `収入合計: ${formatAmount(incomeTotal)}`;
+
+            document.getElementById("expense-total").textContent =
+                `支出合計: ${formatAmount(expenseTotal)}`;
+
+            document.getElementById("balance-total").textContent =
+                `収支: ${formatAmount(incomeTotal - expenseTotal)}`;
+
+            renderCategorySummary("income-category-summary", incomeCategory);
+            renderCategorySummary("expense-category-summary", expenseCategory);
+        }
+
+        function renderCategorySummary(elementId, summaryObj) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = "";
+
+            Object.keys(summaryObj).forEach(cat => {
+                const p = document.createElement("p");
+                p.textContent = `${cat}: ${formatAmount(summaryObj[cat])}`;
+                container.appendChild(p);
+            });
+        }
+
+        // ★ Excel出力：プレビューURLではなく直接ダウンロードされるURLを生成
+        async function exportExcel() {
+            toggleLoading(true);
+
+            const result = await callGasAPI("exportMonthlyLedger", {
+                year: currentYear,
+                month: currentMonth
+            });
+
+            toggleLoading(false);
+
+            if (!result.success) {
+                showMessage("Excel出力に失敗しました: " + (result.message || ""), true);
+                return;
+            }
+
+            const btn = document.getElementById("excel-download-btn");
+            btn.style.display = "block";
+            btn.onclick = () => {
+                window.open(result.downloadUrl, "_blank");
+            };
+
+            showMessage("Excelファイルを生成しました！");
+        }
+
+        window.addEventListener("load", () => {
+            updateMonthLabel();
+            loadLedger();
+        });
+    </script>
+
+</body>
+</html>
