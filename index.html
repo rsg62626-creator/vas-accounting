@@ -168,23 +168,42 @@
             });
         }
 
-        function renderBarChart(months, remains) {
+        function renderBarChart(months, remains, prevYearExpenses) {
             const ctx = document.getElementById('barChart').getContext('2d');
             if (barChart) barChart.destroy();
+
+            const datasets = [{
+                label: '予算残高',
+                data: remains,
+                backgroundColor: '#3498db',
+                barPercentage: 0.9,
+                categoryPercentage: 0.8,
+                grouped: false
+            }];
+
+            if (prevYearExpenses) {
+                datasets.push({
+                    label: '前年度実績（同月支出）',
+                    data: prevYearExpenses,
+                    backgroundColor: 'rgba(231, 76, 60, 0.85)',
+                    barPercentage: 0.45,
+                    categoryPercentage: 0.8,
+                    grouped: false
+                });
+            }
 
             barChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: months,
-                    datasets: [{
-                        label: '予算残高',
-                        data: remains,
-                        backgroundColor: '#3498db'
-                    }]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
-                    scales: { y: { beginAtZero: true } }
+                    scales: {
+                        x: { stacked: false },
+                        y: { beginAtZero: true }
+                    }
                 }
             });
         }
@@ -204,7 +223,7 @@
 
             const monthly = await callGasAPI("getMonthlyRemain", {});
             if (monthly.success) {
-                renderBarChart(monthly.months, monthly.remains);
+                renderBarChart(monthly.months, monthly.remains, monthly.prevYearExpenses);
             }
 
             toggleLoading(false);

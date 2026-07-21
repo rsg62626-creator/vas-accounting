@@ -145,3 +145,24 @@ function validateRequired(id, label = '') {
     }
     return true;
 }
+
+
+/* --------------------------------------------------
+   グローバルエラーハンドリング
+   ★ 予期しないJSエラーが起きても画面が「無反応」に見えないよう、
+      必ずトーストでエラーを表示する。
+-------------------------------------------------- */
+window.addEventListener('error', (event) => {
+    console.error('[Unhandled Error]', event.error || event.message);
+    if (typeof showMessage === 'function') {
+        showMessage('エラーが発生しました: ' + (event.message || '不明なエラー'), true);
+    }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('[Unhandled Promise Rejection]', event.reason);
+    if (typeof showMessage === 'function') {
+        const msg = (event.reason && event.reason.message) ? event.reason.message : String(event.reason);
+        showMessage('通信エラーが発生しました: ' + msg, true);
+    }
+});

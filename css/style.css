@@ -183,6 +183,52 @@ h2 {
     font-weight: normal;
 }
 
+/* 区分トグル（支出=赤 / 収入=青、選択中がハッキリ分かるように） */
+.type-toggle {
+    display: flex;
+    gap: 10px;
+}
+
+.type-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 10px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.05rem;
+    color: var(--gray);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s ease;
+}
+
+.type-option input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.type-option.expense-option:has(input:checked) {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+}
+
+.type-option.income-option:has(input:checked) {
+    background: #3498db;
+    border-color: #3498db;
+    color: white;
+}
+
+.type-option:active {
+    transform: scale(0.98);
+}
+
 .btn-submit {
     background: var(--secondary);
     color: white;
@@ -286,6 +332,36 @@ hr {
     th, td {
         padding: 8px 10px;
         font-size: 0.85rem;
+    }
+
+    .container-sm {
+        margin: 0;
+        border-radius: 0;
+        padding: 16px;
+        box-shadow: none;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="password"],
+    .form-group input[type="date"],
+    .form-group input[type="month"],
+    .form-group select {
+        padding: 12px;
+        font-size: 16px; /* iOSで入力時に自動ズームされるのを防ぐ */
+    }
+
+    .btn-submit {
+        padding: 16px;
+        font-size: 1.15rem;
+    }
+
+    .type-option {
+        padding: 16px 8px;
+        font-size: 1rem;
     }
 }
 

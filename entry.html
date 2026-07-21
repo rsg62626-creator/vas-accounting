@@ -19,18 +19,21 @@
         <div></div>
     </nav>
 
+    <div class="container-sm">
+        <form id="entry-form">
             <div class="form-group">
                 <label>区分</label>
-
-                <div class="segmented-toggle">
-                    <input type="radio" id="type-expense" name="type" value="支出" checked>
-                    <label for="type-expense" class="segment segment-expense">支出</label>
-
-                    <input type="radio" id="type-income" name="type" value="収入">
-                    <label for="type-income" class="segment segment-income">収入</label>
+                <div class="type-toggle">
+                    <label class="type-option expense-option">
+                        <input type="radio" name="type" value="支出" checked>
+                        <i class="fa-solid fa-circle-arrow-down"></i> 支出
+                    </label>
+                    <label class="type-option income-option">
+                        <input type="radio" name="type" value="収入">
+                        <i class="fa-solid fa-circle-arrow-up"></i> 収入
+                    </label>
                 </div>
             </div>
-
 
             <div class="form-group">
                 <label>日付</label>
@@ -168,9 +171,16 @@
                 }
             }
 
+            const submitBtn = document.querySelector('#entry-form button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.6';
+
             toggleLoading(true);
             const response = await callGasAPI("saveEntry", formData);
             toggleLoading(false);
+
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
 
             if (response && response.success) {
                 showMessage(`登録が完了しました！\n会計番号: ${response.id}\nレシート番号: ${response.receiptNo}`);
