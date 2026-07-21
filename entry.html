@@ -19,15 +19,18 @@
         <div></div>
     </nav>
 
-    <div class="container-sm">
-        <form id="entry-form">
             <div class="form-group">
                 <label>区分</label>
-                <div class="radio-group">
-                    <label><input type="radio" name="type" value="支出" checked> 支出</label>
-                    <label><input type="radio" name="type" value="収入"> 収入</label>
+
+                <div class="segmented-toggle">
+                    <input type="radio" id="type-expense" name="type" value="支出" checked>
+                    <label for="type-expense" class="segment segment-expense">支出</label>
+
+                    <input type="radio" id="type-income" name="type" value="収入">
+                    <label for="type-income" class="segment segment-income">収入</label>
                 </div>
             </div>
+
 
             <div class="form-group">
                 <label>日付</label>
