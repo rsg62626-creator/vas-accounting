@@ -4,7 +4,7 @@
  * GAS への API 呼び出し(POST)は常にネットワークへ素通しする。
  */
 
-const CACHE_VERSION = "vas-cache-v5";
+const CACHE_VERSION = "vas-cache-v7";
 
 const APP_SHELL = [
   "./",

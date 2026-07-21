@@ -172,25 +172,61 @@
             const ctx = document.getElementById('barChart').getContext('2d');
             if (barChart) barChart.destroy();
 
+            const hasPrevYear = Array.isArray(prevYearExpenses);
+            const diffs = hasPrevYear
+                ? remains.map((v, i) => v - (Number(prevYearExpenses[i]) || 0))
+                : [];
+
             const datasets = [{
                 label: '予算残高',
                 data: remains,
                 backgroundColor: '#3498db',
-                barPercentage: 0.9,
+                barPercentage: 0.85,
                 categoryPercentage: 0.8,
-                grouped: false
+                grouped: false,
+                order: 1 // 先に描く（後ろ側）
             }];
 
-            if (prevYearExpenses) {
+            if (hasPrevYear) {
                 datasets.push({
                     label: '前年度実績（同月支出）',
                     data: prevYearExpenses,
-                    backgroundColor: 'rgba(231, 76, 60, 0.85)',
-                    barPercentage: 0.45,
+                    backgroundColor: 'rgba(231, 76, 60, 0.9)',
+                    barPercentage: 0.85,
                     categoryPercentage: 0.8,
-                    grouped: false
+                    grouped: false,
+                    order: 2 // 後で描く（前面に表示）
                 });
             }
+
+            // ★ 赤バーの上端に「余裕／不足」の差額ラベルを描く独自プラグイン
+            const diffLabelPlugin = {
+                id: 'diffLabel',
+                afterDatasetsDraw(chart) {
+                    if (!hasPrevYear) return;
+                    const meta = chart.getDatasetMeta(1);
+                    if (!meta || meta.hidden) return;
+
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 11px "Helvetica Neue", Arial, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+
+                    meta.data.forEach((bar, index) => {
+                        const diff = diffs[index];
+                        if (diff === undefined || isNaN(diff)) return;
+                        if (diff >= 0) return; // 余裕がある場合は何も表示しない
+
+                        const label = '-¥' + Math.abs(Math.round(diff)).toLocaleString();
+
+                        ctx.fillStyle = '#e74c3c';
+                        ctx.fillText(label, bar.x, bar.y - 6);
+                    });
+
+                    ctx.restore();
+                }
+            };
 
             barChart = new Chart(ctx, {
                 type: 'bar',
@@ -200,11 +236,15 @@
                 },
                 options: {
                     responsive: true,
+                    layout: {
+                        padding: { top: 24 } // ラベル用の余白
+                    },
                     scales: {
                         x: { stacked: false },
                         y: { beginAtZero: true }
                     }
-                }
+                },
+                plugins: hasPrevYear ? [diffLabelPlugin] : []
             });
         }
 
@@ -222,6 +262,7 @@
             renderIncomeExpenseBar(summary.income, summary.expense);
 
             const monthly = await callGasAPI("getMonthlyRemain", {});
+            console.log('[getMonthlyRemain result]', monthly);
             if (monthly.success) {
                 renderBarChart(monthly.months, monthly.remains, monthly.prevYearExpenses);
             }
