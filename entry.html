@@ -88,6 +88,8 @@
             reader.onerror = error => reject(error);
         });
 
+        let categoriesData = { income: [], expense: [] };
+
         async function loadCategories() {
             setTodayIfEmpty('date');
 
@@ -98,11 +100,18 @@
                 return;
             }
 
-            const categories = settings.categories || [];
+            categoriesData = settings.categories || { income: [], expense: [] };
+            updateCategoryOptions();
+        }
+
+        function updateCategoryOptions() {
+            const type = document.querySelector('input[name="type"]:checked').value;
+            const list = (type === "収入") ? categoriesData.income : categoriesData.expense;
+
             const select = document.getElementById("category");
             select.innerHTML = "";
 
-            categories.forEach(cat => {
+            list.forEach(cat => {
                 const option = document.createElement("option");
                 option.value = cat;
                 option.textContent = cat;
@@ -111,6 +120,10 @@
         }
 
         window.addEventListener("load", loadCategories);
+
+        document.querySelectorAll('input[name="type"]').forEach(radio => {
+            radio.addEventListener('change', updateCategoryOptions);
+        });
 
         document.getElementById('entry-form').addEventListener('submit', async (e) => {
             e.preventDefault();

@@ -10,6 +10,18 @@
     <title>VAS - カテゴリ管理</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="./css/style.css">
+
+    <style>
+        .category-section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 20px 0 8px 0;
+            font-weight: bold;
+        }
+        .category-section-title.income { color: #3498db; }
+        .category-section-title.expense { color: #e74c3c; }
+    </style>
 </head>
 <body>
 
@@ -21,13 +33,30 @@
 
     <div class="container-sm">
 
-        <h2><i class="fa-solid fa-list"></i> カテゴリ一覧</h2>
+        <div class="category-section-title income">
+            <i class="fa-solid fa-circle-arrow-up"></i> 収入カテゴリ
+        </div>
+        <div class="category-list" id="income-category-list">
+            <div class="category-item">読み込み中...</div>
+        </div>
 
-        <div class="category-list" id="category-list">
+        <div class="category-section-title expense">
+            <i class="fa-solid fa-circle-arrow-down"></i> 支出カテゴリ
+        </div>
+        <div class="category-list" id="expense-category-list">
             <div class="category-item">読み込み中...</div>
         </div>
 
         <h2><i class="fa-solid fa-plus"></i> カテゴリを追加</h2>
+
+        <div class="form-group">
+            <label>区分</label>
+            <div class="radio-group">
+                <label><input type="radio" name="new-cat-type" value="支出" checked> 支出</label>
+                <label><input type="radio" name="new-cat-type" value="収入"> 収入</label>
+            </div>
+        </div>
+
         <div class="add-form">
             <input type="text" id="new-category" placeholder="例：交通費">
             <button onclick="addCategory()">追加</button>
@@ -44,35 +73,41 @@
             const result = await callGasAPI("getCategories", {});
             toggleLoading(false);
 
-            const list = document.getElementById('category-list');
+            const incomeList = document.getElementById('income-category-list');
+            const expenseList = document.getElementById('expense-category-list');
 
             if (!result.success) {
-                list.innerHTML = `<div class="category-item">取得に失敗しました</div>`;
+                incomeList.innerHTML = `<div class="category-item">取得に失敗しました</div>`;
+                expenseList.innerHTML = `<div class="category-item">取得に失敗しました</div>`;
                 return;
             }
 
-            const categories = result.data || [];
+            renderCategoryList(incomeList, result.income || [], "収入");
+            renderCategoryList(expenseList, result.expense || [], "支出");
+        }
 
+        function renderCategoryList(container, categories, type) {
             if (categories.length === 0) {
-                list.innerHTML = `<div class="category-item">カテゴリがありません</div>`;
+                container.innerHTML = `<div class="category-item">カテゴリがありません</div>`;
                 return;
             }
 
-            list.innerHTML = "";
+            container.innerHTML = "";
             categories.forEach(cat => {
                 const div = document.createElement('div');
                 div.className = 'category-item';
                 div.innerHTML = `
                     <span>${cat}</span>
-                    <button onclick="deleteCategory('${cat}')"><i class="fa-solid fa-trash"></i> 削除</button>
+                    <button onclick="deleteCategory('${cat}', '${type}')"><i class="fa-solid fa-trash"></i> 削除</button>
                 `;
-                list.appendChild(div);
+                container.appendChild(div);
             });
         }
 
         async function addCategory() {
             const input = document.getElementById('new-category');
             const name = input.value.trim();
+            const type = document.querySelector('input[name="new-cat-type"]:checked').value;
 
             if (!name) {
                 showMessage("カテゴリ名を入力してください", true);
@@ -80,7 +115,7 @@
             }
 
             toggleLoading(true);
-            const result = await callGasAPI("addCategory", { name });
+            const result = await callGasAPI("addCategory", { name, type });
             toggleLoading(false);
 
             if (result.success) {
@@ -92,11 +127,11 @@
             }
         }
 
-        async function deleteCategory(name) {
+        async function deleteCategory(name, type) {
             if (!confirm(`「${name}」を削除しますか？`)) return;
 
             toggleLoading(true);
-            const result = await callGasAPI("deleteCategory", { name });
+            const result = await callGasAPI("deleteCategory", { name, type });
             toggleLoading(false);
 
             if (result.success) {
