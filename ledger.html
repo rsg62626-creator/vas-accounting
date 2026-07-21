@@ -194,6 +194,7 @@
 
                 const amount = Number(item[6]);
                 const receipt = item[7];
+                const driveUrl = item[8];
 
                 if (type === "収入") {
                     row.classList.add("income-row");
@@ -207,6 +208,12 @@
                     expenseCategory[category] = (expenseCategory[category] || 0) + amount;
                 }
 
+                const receiptCell = driveUrl
+                    ? `<a href="${driveUrl}" target="_blank" rel="noopener" title="領収書画像を見る">
+                           <i class="fa-solid fa-image"></i> ${receipt}
+                       </a>`
+                    : receipt;
+
                 row.innerHTML = `
                     <td>${date}</td>
                     <td>${type}</td>
@@ -214,7 +221,7 @@
                     <td>${descriptionMain}</td>
                     <td class="detail">${detail}</td>
                     <td class="amount">${formatAmount(amount)}</td>
-                    <td>${receipt}</td>
+                    <td>${receiptCell}</td>
                 `;
 
                 tbody.appendChild(row);
