@@ -55,6 +55,10 @@
             </div>
             <div class="graph-card">
                 <h3><i class="fa-solid fa-chart-column"></i> 月別予算残高</h3>
+                <div class="chart-legend">
+                    <span><span class="legend-swatch" style="background:#3498db;"></span>予算残高</span>
+                    <span><span class="legend-swatch" style="background:#e74c3c;"></span>前年度実績（同月支出）</span>
+                </div>
                 <canvas id="barChart"></canvas>
             </div>
         </div>
@@ -75,7 +79,7 @@
             </a>
             <a href="./reports.html" class="btn-menu">
                 <i class="fa-solid fa-file-export"></i>
-                <span>CSVエクスポート</span>
+                <span>CSV出力</span>
             </a>
             <a href="./settings.html" class="btn-menu">
                 <i class="fa-solid fa-gear"></i>
@@ -177,54 +181,48 @@
                 ? remains.map((v, i) => v - (Number(prevYearExpenses[i]) || 0))
                 : [];
 
-            const datasets = [{
-                label: '予算残高',
-                data: remains,
-                backgroundColor: '#3498db',
-                barPercentage: 0.85,
-                categoryPercentage: 0.8,
-                grouped: false,
-                order: 1 // 先に描く（後ろ側）
-            }];
-
-            if (hasPrevYear) {
-                datasets.push({
-                    label: '前年度実績（同月支出）',
-                    data: prevYearExpenses,
-                    backgroundColor: 'rgba(231, 76, 60, 0.9)',
-                    barPercentage: 0.85,
-                    categoryPercentage: 0.8,
-                    grouped: false,
-                    order: 2 // 後で描く（前面に表示）
-                });
-            }
-
-            // ★ 赤バーの上端に「余裕／不足」の差額ラベルを描く独自プラグイン
-            const diffLabelPlugin = {
-                id: 'diffLabel',
+            // ★ 前年度実績を、青バーの描画後に赤い長方形として直接キャンバスに重ね描きする
+            //    （Chart.jsのgrouped/order任せにせず、確実に前面へ表示するため）
+            const overlayPlugin = {
+                id: 'prevYearOverlay',
                 afterDatasetsDraw(chart) {
                     if (!hasPrevYear) return;
-                    const meta = chart.getDatasetMeta(1);
-                    if (!meta || meta.hidden) return;
 
-                    const { ctx } = chart;
-                    ctx.save();
-                    ctx.font = 'bold 11px "Helvetica Neue", Arial, sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta || !meta.data || meta.data.length === 0) return;
+
+                    const yScale = chart.scales.y;
+                    const baseY = yScale.getPixelForValue(0);
+                    const chartCtx = chart.ctx;
+
+                    chartCtx.save();
 
                     meta.data.forEach((bar, index) => {
+                        const prevValue = Number(prevYearExpenses[index]) || 0;
+                        if (prevValue <= 0) return;
+
+                        const topY = yScale.getPixelForValue(prevValue);
+                        const barWidth = bar.width;
+                        const left = bar.x - barWidth / 2;
+
+                        chartCtx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+                        chartCtx.fillRect(left, topY, barWidth, baseY - topY);
+
                         const diff = diffs[index];
-                        if (diff === undefined || isNaN(diff)) return;
-                        if (diff >= 0) return; // 余裕がある場合は何も表示しない
-
-                        const label = '-¥' + Math.abs(Math.round(diff)).toLocaleString();
-
-                        ctx.fillStyle = '#e74c3c';
-                        ctx.fillText(label, bar.x, bar.y - 6);
+                        if (diff !== undefined && !isNaN(diff) && diff < 0) {
+                            chartCtx.font = 'bold 11px "Helvetica Neue", Arial, sans-serif';
+                            chartCtx.textAlign = 'center';
+                            chartCtx.textBaseline = 'bottom';
+                            chartCtx.fillStyle = '#e74c3c';
+                            chartCtx.fillText(
+                                '-¥' + Math.abs(Math.round(diff)).toLocaleString(),
+                                bar.x,
+                                topY - 6
+                            );
+                        }
                     });
 
-                    ctx.restore();
+                    chartCtx.restore();
                 }
             };
 
@@ -232,19 +230,25 @@
                 type: 'bar',
                 data: {
                     labels: months,
-                    datasets: datasets
+                    datasets: [{
+                        label: '予算残高',
+                        data: remains,
+                        backgroundColor: '#3498db'
+                    }]
                 },
                 options: {
                     responsive: true,
                     layout: {
-                        padding: { top: 24 } // ラベル用の余白
+                        padding: { top: 24 }
+                    },
+                    plugins: {
+                        legend: { display: false }
                     },
                     scales: {
-                        x: { stacked: false },
                         y: { beginAtZero: true }
                     }
                 },
-                plugins: hasPrevYear ? [diffLabelPlugin] : []
+                plugins: hasPrevYear ? [overlayPlugin] : []
             });
         }
 
@@ -262,7 +266,6 @@
             renderIncomeExpenseBar(summary.income, summary.expense);
 
             const monthly = await callGasAPI("getMonthlyRemain", {});
-            console.log('[getMonthlyRemain result]', monthly);
             if (monthly.success) {
                 renderBarChart(monthly.months, monthly.remains, monthly.prevYearExpenses);
             }
