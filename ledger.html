@@ -31,6 +31,18 @@
             <input type="text" id="search" placeholder="検索（科目・摘要・内訳・金額・区分・日付）" oninput="applySearch()">
         </div>
 
+        <div style="text-align:right; margin: 0 0 10px 0;">
+            <a href="#" onclick="toggleUnpaidDues(); return false;" style="font-size:0.85rem; color: var(--gray);">
+                <i class="fa-solid fa-clipboard-list"></i> 部費未納者を確認
+            </a>
+        </div>
+
+        <div id="unpaid-dues-panel" style="display:none; margin-bottom: 16px;">
+            <div class="category-list" id="unpaid-dues-list">
+                <div class="category-item">読み込み中...</div>
+            </div>
+        </div>
+
         <table id="ledger-table">
             <thead>
                 <tr>
@@ -280,6 +292,49 @@
             updateMonthLabel();
             loadLedger();
         });
+
+        let unpaidDuesLoaded = false;
+
+        async function toggleUnpaidDues() {
+            const panel = document.getElementById('unpaid-dues-panel');
+            const isOpening = panel.style.display === 'none';
+            panel.style.display = isOpening ? 'block' : 'none';
+
+            if (isOpening && !unpaidDuesLoaded) {
+                await loadUnpaidDues();
+                unpaidDuesLoaded = true;
+            }
+        }
+
+        async function loadUnpaidDues() {
+            const list = document.getElementById('unpaid-dues-list');
+            list.innerHTML = `<div class="category-item">読み込み中...</div>`;
+
+            const result = await callGasAPI("getUnpaidDuesMembers", {});
+
+            if (!result.success) {
+                list.innerHTML = `<div class="category-item">${result.message || "取得に失敗しました"}</div>`;
+                return;
+            }
+
+            if (!result.unpaid || result.unpaid.length === 0) {
+                list.innerHTML = `<div class="category-item">${result.month}分の未納者はいません</div>`;
+                return;
+            }
+
+            list.innerHTML = "";
+            const title = document.createElement("div");
+            title.className = "category-item";
+            title.innerHTML = `<strong>${result.month}分 未納者（${result.unpaid.length}名）</strong>`;
+            list.appendChild(title);
+
+            result.unpaid.forEach(member => {
+                const div = document.createElement("div");
+                div.className = "category-item";
+                div.innerHTML = `<span>${member.name}</span><span>${formatAmount(member.fee)}円</span>`;
+                list.appendChild(div);
+            });
+        }
     </script>
 
 </body>
