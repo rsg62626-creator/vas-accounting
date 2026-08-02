@@ -79,7 +79,7 @@
             </a>
             <a href="./reports.html" class="btn-menu">
                 <i class="fa-solid fa-file-export"></i>
-                <span>CSV出力</span>
+                <span>CSVエクスポート</span>
             </a>
             <a href="./settings.html" class="btn-menu">
                 <i class="fa-solid fa-gear"></i>
@@ -260,7 +260,7 @@
             document.getElementById('carryover-display').textContent = formatCurrency(carryover);
 
             const summary = await callGasAPI("getDashboard", {});
-            const budgetRemain = carryover + summary.income - summary.expense;
+            const budgetRemain = summary.budgetRemain;
 
             updateSummary(summary.income, summary.expense, summary.balance, budgetRemain);
             renderIncomeExpenseBar(summary.income, summary.expense);
