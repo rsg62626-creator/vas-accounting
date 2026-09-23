@@ -36,13 +36,23 @@
 
             <p style="margin-bottom:10px;">
                 月締めを実行すると、<br>
-                ・前月の収支集計<br>
+                ・対象月の収支集計<br>
                 ・年間現金出納簿の更新<br>
-                ・翌月繰越の更新<br>
                 が自動で行われます。
             </p>
 
-            <button onclick="runMonthClose()">前月を月締めする</button>
+            <div class="form-group">
+                <label>対象月</label>
+                <input type="month" id="close-target-month">
+            </div>
+
+            <button onclick="runMonthClose()">この月を締める</button>
+
+            <div id="close-report-link" style="display:none; margin-top:12px;">
+                <a id="close-report-anchor" href="#" target="_blank" class="btn-submit" style="background: var(--primary); text-decoration:none;">
+                    <i class="fa-solid fa-file-excel"></i> 生成されたレポートを開く
+                </a>
+            </div>
         </div>
 
         <!-- 業務管理 -->
@@ -76,9 +86,33 @@
     <script src="./js/api.js"></script>
 
     <script>
+        function initCloseTargetMonth() {
+            const el = document.getElementById('close-target-month');
+            if (!el || el.value) return;
+
+            const today = new Date();
+            let y = today.getFullYear();
+            let m = today.getMonth() + 1 - 1; // 先月
+            if (m === 0) { m = 12; y -= 1; }
+
+            el.value = `${y}-${("0" + m).slice(-2)}`;
+        }
+        window.addEventListener('load', initCloseTargetMonth);
+
         async function runMonthClose() {
+            const val = document.getElementById('close-target-month').value;
+            if (!val) {
+                showMessage("対象月を選択してください", true);
+                return;
+            }
+            const [y, m] = val.split('-');
+
+            if (!confirm(`${y}年${Number(m)}月を月締めします。よろしいですか？\n（すでに締め済みの月を選ぶと上書きされます）`)) {
+                return;
+            }
+
             toggleLoading(true);
-            const result = await callGasAPI("runMonthClose", {});
+            const result = await callGasAPI("runMonthClose", { year: Number(y), month: Number(m) });
             toggleLoading(false);
 
             if (!result.success) {
@@ -87,6 +121,15 @@
             }
 
             showMessage(result.message);
+
+            const linkArea = document.getElementById('close-report-link');
+            const anchor = document.getElementById('close-report-anchor');
+            if (result.fileUrl) {
+                anchor.href = result.fileUrl;
+                linkArea.style.display = 'block';
+            } else {
+                linkArea.style.display = 'none';
+            }
         }
 
         async function runIntegrityCheck() {
